@@ -1,0 +1,5 @@
+{
+  "name": "Gemini Comic Weaver",
+  "description": "An interactive comic story generator where your choices influence the narrative. Powered by Gemini, it tracks your story's mood through a vector system, leading to unique endings. Features chapter-based generation, full story history, and character consistency.",
+  "requestFramePermissions": []
+}
