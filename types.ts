@@ -12,6 +12,7 @@ export interface Panel {
   narrative: string;
   narrativeAudio?: string; // object URL for voice-over
   soundEffectAudio?: string; // object URL for SFX
+  stingerAudio?: string; // object URL for short transition hit
 }
 
 export interface Choice {

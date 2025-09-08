@@ -52,6 +52,25 @@ const saveBackgroundMusicFromUrl = async (musicUrl: string | undefined): Promise
   }
 };
 
+const saveCompletedBackgroundMusicFromUrl = async (musicUrl: string | undefined): Promise<void> => {
+  if (!musicUrl) return;
+  try {
+    const response = await fetch(musicUrl);
+    if (!response.ok) return;
+    const blob = await response.blob();
+    const dbInstance = await openDB();
+    await new Promise<void>((resolve, reject) => {
+      const tx = dbInstance.transaction(ASSET_STORE_NAME, 'readwrite');
+      const store = tx.objectStore(ASSET_STORE_NAME);
+      store.put({ id: 'completedBackgroundMusic', blob });
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch {
+    // Ignore storing failures silently
+  }
+};
+
 export const saveState = async (state: any): Promise<void> => {
   const dbInstance = await openDB();
   await new Promise<void>((resolve, reject) => {
@@ -136,4 +155,77 @@ export const clearState = async (): Promise<void> => {
         transaction.oncomplete = () => resolve();
         transaction.onerror = () => reject(transaction.error);
     });
+};
+
+export const saveCompletedState = async (state: any): Promise<void> => {
+  const dbInstance = await openDB();
+  await new Promise<void>((resolve, reject) => {
+    const transaction = dbInstance.transaction(STORE_NAME, 'readwrite');
+    const store = transaction.objectStore(STORE_NAME);
+    store.put({ id: 'completedState', ...state });
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+  });
+  await saveCompletedBackgroundMusicFromUrl(state?.context?.backgroundMusic);
+};
+
+export const loadCompletedState = async (): Promise<any | null> => {
+  const dbInstance = await openDB();
+  const saved = await new Promise<any | null>((resolve, reject) => {
+    const transaction = dbInstance.transaction(STORE_NAME, 'readonly');
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.get('completedState');
+    request.onsuccess = () => {
+      resolve(request.result || null);
+    };
+    request.onerror = () => reject(request.error);
+  });
+
+  if (!saved) return null;
+
+  try {
+    const musicBlob: Blob | null = await new Promise((resolve, reject) => {
+      const tx = dbInstance.transaction(ASSET_STORE_NAME, 'readonly');
+      const store = tx.objectStore(ASSET_STORE_NAME);
+      const req = store.get('completedBackgroundMusic');
+      req.onsuccess = () => {
+        const record = req.result as { id: string; blob: Blob } | undefined;
+        resolve(record?.blob ?? null);
+      };
+      req.onerror = () => reject(req.error);
+    });
+    if (musicBlob) {
+      const url = URL.createObjectURL(musicBlob);
+      if (saved.context) {
+        saved.context.backgroundMusic = url;
+      }
+    }
+  } catch {
+    // Ignore rehydration failure
+  }
+
+  return saved;
+};
+
+export const hasCompletedState = async (): Promise<boolean> => {
+  const state = await loadCompletedState();
+  return state !== null;
+};
+
+export const clearCompletedState = async (): Promise<void> => {
+  const dbInstance = await openDB();
+  await new Promise<void>((resolve, reject) => {
+    const transaction = dbInstance.transaction(STORE_NAME, 'readwrite');
+    const store = transaction.objectStore(STORE_NAME);
+    store.delete('completedState');
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+  });
+  await new Promise<void>((resolve, reject) => {
+    const transaction = dbInstance.transaction(ASSET_STORE_NAME, 'readwrite');
+    const store = transaction.objectStore(ASSET_STORE_NAME);
+    store.delete('completedBackgroundMusic');
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+  });
 };

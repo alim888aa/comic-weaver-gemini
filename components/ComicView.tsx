@@ -6,7 +6,7 @@ import Navigation from './Navigation';
 import MoodCard from './MoodCard.tsx';
 import ChoiceButtons from './ChoiceButtons';
 import LoadingSpinner from './LoadingSpinner';
-import { VolumeUpIcon, VolumeOffIcon } from './icons';
+import { VolumeUpIcon, VolumeOffIcon, ArrowLeftIcon } from './icons';
 
 interface ComicViewProps {
   state: StateFrom<typeof storyMachine>;
@@ -25,7 +25,7 @@ const ComicView: React.FC<ComicViewProps> = ({ state, send }) => {
     }
   }, [backgroundMusic]);
 
-  const showChoices = (currentPanelIndex + 1) % 5 === 0 && currentPanelIndex === allPanels.length - 1 && choices.length > 0 && !isGenerating;
+  const showChoices = (currentPanelIndex + 1) % 6 === 0 && currentPanelIndex === allPanels.length - 1 && choices.length > 0 && !isGenerating;
 
   return (
     <div className="w-full max-w-6xl mx-auto flex flex-col lg:flex-row items-start gap-4">
@@ -45,6 +45,16 @@ const ComicView: React.FC<ComicViewProps> = ({ state, send }) => {
           {backgroundMusic && (
               <audio ref={audioRef} src={backgroundMusic} autoPlay loop muted={isMuted} />
           )}
+        </div>
+        <div className="mt-3">
+          <button
+            onClick={() => send({ type: 'EXIT_TO_MENU' })}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-purple-600 text-white font-semibold rounded-lg transition-colors"
+          >
+            <ArrowLeftIcon className="w-5 h-5" />
+            <span className="hidden sm:inline">Back to Menu</span>
+            <span className="sm:hidden">Back</span>
+          </button>
         </div>
       </div>
 

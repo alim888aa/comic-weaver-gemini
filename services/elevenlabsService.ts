@@ -72,3 +72,41 @@ export const generateBackgroundMusic = (apiKey: string, prompt: string): Promise
     };
     return generateAudio(apiKey, url, body);
 };
+
+// Simple in-memory cache scoped to a session. Keys are normalized prompts + duration.
+const audioCache = new Map<string, string>();
+
+const normalizePrompt = (prompt: string): string =>
+  prompt
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 400);
+
+const cacheKey = (prompt: string, durationSeconds: number): string =>
+  `${normalizePrompt(prompt)}::${durationSeconds}`;
+
+export const getOrGenerateAudio = async (
+  apiKey: string,
+  prompt: string,
+  durationSeconds: number
+): Promise<string> => {
+  const key = cacheKey(prompt, durationSeconds);
+  const cached = audioCache.get(key);
+  if (cached) return cached;
+
+  const url = `${API_BASE_URL}/sound-generation`;
+  const body = { text: prompt, duration_seconds: durationSeconds } as const;
+  const result = await generateAudio(apiKey, url, body);
+  if (result) audioCache.set(key, result);
+  return result;
+};
+
+export const generateStinger = (apiKey: string, prompt: string): Promise<string> => {
+  return getOrGenerateAudio(apiKey, prompt, 2);
+};
+
+export const generateAmbienceBed = (apiKey: string, prompt: string): Promise<string> => {
+  // 12s loopable ambience bed as fallback when music is unavailable
+  return getOrGenerateAudio(apiKey, `${prompt} — loopable ambience bed, no vocals, minimal melody`, 12);
+};
