@@ -289,9 +289,9 @@ export const generatePanelImage = async (
   let response: any;
   try {
     const runRequest = async () => {
-      console.log('[Gemini] generatePanelImage request', { model: 'gemini-2.5-flash-image-preview' });
+      console.log('[Gemini] generatePanelImage request', { model: 'gemini-2.5-flash-image' });
       const res = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-image-preview',
+        model: 'gemini-2.5-flash-image',
         contents: {
           parts: parts,
         },
@@ -414,9 +414,9 @@ export const generateChapterImagesBatch = async (
   let response: any;
   try {
     const runRequest = async () => {
-      console.log('[Gemini] generateChapterImagesBatch request', { model: 'gemini-2.5-flash-image-preview', panelCount });
+      console.log('[Gemini] generateChapterImagesBatch request', { model: 'gemini-2.5-flash-image', panelCount });
       const res = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-image-preview',
+        model: 'gemini-2.5-flash-image',
         contents: { parts },
         config: { responseModalities: [Modality.IMAGE] },
       });
@@ -741,9 +741,9 @@ JSON rules (critical): Exactly 6 panels. Exactly 4 choices; each biased to a dif
   let response: any;
   try {
     const runRequest = async () => {
-      console.log('[Gemini] generateDirectorPageAndJSON request', { model: 'gemini-2.5-flash-image-preview' });
+      console.log('[Gemini] generateDirectorPageAndJSON request', { model: 'gemini-2.5-flash-image' });
       const res = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-image-preview',
+        model: 'gemini-2.5-flash-image',
         contents: { parts },
         config: { responseModalities: [Modality.IMAGE, Modality.TEXT] },
       });
@@ -868,9 +868,9 @@ Output: exactly ONE panel image (not a page or collage).
   let response: any;
   try {
     const runRequest = async () => {
-      console.log('[Gemini] generatePanelImageFromPageRef request', { model: 'gemini-2.5-flash-image-preview' });
+      console.log('[Gemini] generatePanelImageFromPageRef request', { model: 'gemini-2.5-flash-image' });
       const res = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-image-preview',
+        model: 'gemini-2.5-flash-image',
         contents: { parts },
         config: { responseModalities: [Modality.IMAGE, Modality.TEXT] },
       });
