@@ -687,6 +687,8 @@ export const generateDirectorPageAndJSON = async (
   previousPanels: Panel[],
   lastChoiceText?: string,
   currentCharacterDescription?: string,
+  characterReferenceImage?: string,
+  styleReferencePage?: string,
 ): Promise<{ pageImage: string; characterDescription?: string; panels: { description: string; narrative: string; specs?: { shotType?: string; angle?: string; lens?: number; composition?: string; lighting?: string; colorPalette?: string; movement?: string; continuityRole?: string } }[]; choices: { text: string; impact: MoodVector }[]; newNpcs: { name: string; description: string }[] }> => {
   if (!apiKey) throw new Error("Gemini API key is required.");
   const ai = new GoogleGenAI({ apiKey });
@@ -708,6 +710,8 @@ Goal:
 
 Theme: ${theme}. Style: Modern American comic.
 Continuity: rainy neon dusk city; teal–magenta palette across all panels.
+If a reference page is provided, match its style, rendering, and character designs.
+Use any provided reference image to keep the main character’s face, hair, outfit, and silhouette consistent.
 Rules (critical): No speech balloons, captions, SFX text, page numbers, or UI. Each panel frames a 4:3 scene INSIDE its cell (full-bleed within the cell). Maintain consistent character design, outfit, environment, lighting, and palette.
 
 Story context: ${previousContext}
@@ -735,7 +739,14 @@ B) Then: output ONLY the JSON object with shape:
 JSON rules (critical): Exactly 6 panels. Exactly 4 choices; each biased to a different mood vector: biased ∈ [0.10, 0.20]; others ∈ [0.00, 0.05]. At most 2 newNpcs. No extra keys.
 `;
 
-  const parts: ({ text: string })[] = [{ text: prompt }];
+  const parts: ({ text: string } | { inlineData: { data: string; mimeType: string } })[] = [];
+  if (styleReferencePage) {
+    parts.push({ inlineData: { data: styleReferencePage, mimeType: 'image/jpeg' } });
+  }
+  if (characterReferenceImage) {
+    parts.push({ inlineData: { data: characterReferenceImage, mimeType: 'image/jpeg' } });
+  }
+  parts.push({ text: prompt });
 
   // Single call: request IMAGE + TEXT; parse page image and JSON from text parts
   let response: any;

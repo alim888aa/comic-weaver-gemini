@@ -35,6 +35,7 @@ export interface StoryContext {
   // FIX: Changed optional properties to be explicitly T | undefined for better type inference with XState.
   characterReference: string | undefined; // base64 image
   characterDescription: string | undefined;
+  storyboardReference: string | undefined; // base64 storyboard page for style continuity
   isGenerating: boolean;
   error: string | null;
   ending: keyof MoodVector | null;

@@ -20,22 +20,12 @@ const ThemeButton: React.FC<{ onClick: () => void; label: string; disabled: bool
   </button>
 );
 
-const ApiInput: React.FC<{ value: string; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; placeholder: string }> = ({ value, onChange, placeholder }) => (
-  <input
-    type="password"
-    value={value}
-    onChange={onChange}
-    placeholder={placeholder}
-    className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-white"
-  />
-);
-
-
 const IdleScreen: React.FC<IdleScreenProps> = ({ send, showContinue, showViewPrevious }) => {
-  const [apiKey, setApiKey] = useState('');
-  const [elevenLabsKey, setElevenLabsKey] = useState('');
-
-  const areKeysProvided = apiKey.trim() !== '' && elevenLabsKey.trim() !== '';
+  const envGeminiKey = (process.env.GEMINI_API_KEY ?? '').toString().trim();
+  const envElevenLabsKey = (process.env.ELEVENLABS_API_KEY ?? '').toString().trim();
+  const [apiKey] = useState(envGeminiKey);
+  const [elevenLabsKey] = useState(envElevenLabsKey);
+  const areKeysProvided = apiKey !== '' && elevenLabsKey !== '';
 
   const handleStart = (theme: Theme) => {
     if (!areKeysProvided) return;
@@ -56,12 +46,7 @@ const IdleScreen: React.FC<IdleScreenProps> = ({ send, showContinue, showViewPre
         <BookOpenIcon className="w-16 h-16 text-purple-400" />
       </div>
       <h2 className="text-3xl font-bold mb-2">Welcome, Storyteller!</h2>
-      <p className="text-gray-400 mb-6">Enter your API keys to begin.</p>
-      
-      <div className="space-y-4 mb-6">
-        <ApiInput value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="Enter your Gemini API Key" />
-        <ApiInput value={elevenLabsKey} onChange={(e) => setElevenLabsKey(e.target.value)} placeholder="Enter your ElevenLabs API Key" />
-      </div>
+      <p className="text-gray-400 mb-6">Choose a genre to begin.</p>
 
       <div className="space-y-4">
         <ThemeButton onClick={() => handleStart('fantasy')} label="Fantasy" disabled={!areKeysProvided} />

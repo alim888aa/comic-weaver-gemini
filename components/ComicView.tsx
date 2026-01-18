@@ -29,8 +29,6 @@ const ComicView: React.FC<ComicViewProps> = ({ state, send }) => {
 
   return (
     <div className="w-full max-w-6xl mx-auto flex flex-col lg:flex-row items-start gap-4">
-      {context.error && <div className="bg-red-500 text-white p-4 rounded-lg mb-4">{context.error}</div>}
-
       {/* Left: Panel */}
       <div className="flex-1">
         <div className="w-full relative aspect-[4/3] bg-gray-800 rounded-lg shadow-lg overflow-hidden border-4 border-gray-700">

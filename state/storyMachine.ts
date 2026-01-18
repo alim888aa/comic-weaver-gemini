@@ -25,6 +25,7 @@ interface GenerationOutput {
   characterReference: string | undefined;
   backgroundMusic: string | undefined;
   newNpcs: NPC[];
+  storyboardReference: string | undefined;
 }
 
 const initialContext: StoryContext = {
@@ -35,6 +36,7 @@ const initialContext: StoryContext = {
   currentPanelIndex: 0,
   characterReference: undefined,
   characterDescription: undefined,
+  storyboardReference: undefined,
   isGenerating: false,
   error: null,
   ending: null,
@@ -88,10 +90,14 @@ export const storyMachine = setup({
       let directorChoices: any[] = [];
       let directorNewNpcs: { name: string; description: string }[] = [];
       let referencePage: string | undefined;
+      let styleReferencePage = input.storyboardReference;
       try {
         console.log('[Director] Starting director+page flow');
-        const director = await generateDirectorPageAndJSON(apiKey, theme, mood, allPanels, lastChoiceText, charDesc);
+        const director = await generateDirectorPageAndJSON(apiKey, theme, mood, allPanels, lastChoiceText, charDesc, charRefImg, styleReferencePage);
         referencePage = director.pageImage;
+        if (!styleReferencePage && referencePage) {
+          styleReferencePage = referencePage;
+        }
         if (!charDesc && director.characterDescription) {
           charDesc = director.characterDescription;
         }
@@ -110,7 +116,23 @@ export const storyMachine = setup({
         directorPanels = storyData.panels;
         directorChoices = storyData.choices;
         directorNewNpcs = storyData.newNpcs || [];
+        if (!charDesc && storyData?.characterDescription) {
+          charDesc = storyData.characterDescription;
+        }
         console.log('[Fallback] Using text orchestrator panels', { count: directorPanels.length });
+      }
+
+      if (!charRefImg && charDesc) {
+        try {
+          charRefImg = await generatePanelImage(
+            apiKey,
+            theme,
+            'A portrait of the main character, head and shoulders, neutral expression, clean background.',
+            charDesc,
+          );
+        } catch (err) {
+          console.warn('[Portrait] Failed to generate main character portrait; continuing without', err);
+        }
       }
 
       // Build or reuse NPC portraits (cache by identical name+description)
@@ -132,12 +154,14 @@ export const storyMachine = setup({
       const audioBriefs = await generateAudioBriefs(apiKey, theme, mood, pseudoForAudio);
 
       // Start background music generation with fallback to ambience bed
-      const backgroundMusicPromise = (async () => {
-        const track = await generateBackgroundMusic(elevenLabsApiKey, audioBriefs.musicPrompt);
-        if (track && track.length > 0) return track;
-        // Fallback ambience bed
-        return await generateAmbienceBed(elevenLabsApiKey, audioBriefs.ambiencePrompt || audioBriefs.musicPrompt);
-      })();
+      const backgroundMusicPromise = input.backgroundMusic
+        ? Promise.resolve(input.backgroundMusic)
+        : (async () => {
+            const track = await generateBackgroundMusic(elevenLabsApiKey, audioBriefs.musicPrompt);
+            if (track && track.length > 0) return track;
+            // Fallback ambience bed
+            return await generateAmbienceBed(elevenLabsApiKey, audioBriefs.ambiencePrompt || audioBriefs.musicPrompt);
+          })();
 
       // Cost caps: at most 4 SFX and 2 stingers per chapter
       let sfxCount = 0;
@@ -235,6 +259,7 @@ export const storyMachine = setup({
         characterReference: charRefImg,
         backgroundMusic,
         newNpcs: createdOrReusedNpcs,
+        storyboardReference: styleReferencePage,
       };
     }),
     generateEnding: fromPromise(async ({ input }: { input: StoryContext }): Promise<{ newPanels: Panel[] }> => {
@@ -426,6 +451,7 @@ export const storyMachine = setup({
             choices: ({ event }) => event.output.choices,
             characterDescription: ({ context, event }) => context.characterDescription || event.output.characterDescription,
             characterReference: ({ context, event }) => context.characterReference || event.output.characterReference,
+            storyboardReference: ({ context, event }) => context.storyboardReference || event.output.storyboardReference,
             backgroundMusic: ({ event }) => event.output.backgroundMusic,
             npcs: ({ context, event }) => [...context.npcs, ...event.output.newNpcs],
             currentPanelIndex: ({ context }) => context.allPanels.length, 

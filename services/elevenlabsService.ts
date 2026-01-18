@@ -1,7 +1,30 @@
 const API_BASE_URL = 'https://api.elevenlabs.io/v1';
+const MAX_CONCURRENT_REQUESTS = 3;
 
 // A good default voice. Can be replaced with any other Voice ID.
 const DEFAULT_VOICE_ID = '21m00Tcm4TlvDq8ikWAM'; 
+
+let activeRequests = 0;
+const requestQueue: Array<() => void> = [];
+
+const acquireSlot = (): Promise<void> =>
+  new Promise((resolve) => {
+    const tryAcquire = () => {
+      if (activeRequests < MAX_CONCURRENT_REQUESTS) {
+        activeRequests += 1;
+        resolve();
+        return;
+      }
+      requestQueue.push(tryAcquire);
+    };
+    tryAcquire();
+  });
+
+const releaseSlot = () => {
+  activeRequests = Math.max(0, activeRequests - 1);
+  const next = requestQueue.shift();
+  if (next) next();
+};
 
 const generateAudio = async (apiKey: string, url: string, body: object): Promise<string> => {
   if (!apiKey) {
@@ -10,6 +33,7 @@ const generateAudio = async (apiKey: string, url: string, body: object): Promise
   }
 
   try {
+    await acquireSlot();
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -37,6 +61,8 @@ const generateAudio = async (apiKey: string, url: string, body: object): Promise
     console.error("An error occurred while generating ElevenLabs audio. The comic will continue without it.", error);
     // Return an empty string so the app can proceed.
     return ""; 
+  } finally {
+    releaseSlot();
   }
 };
 
@@ -54,23 +80,14 @@ export const generateVoiceOver = (apiKey: string, text: string, voiceId: string 
 };
 
 export const generateSoundEffect = (apiKey: string, prompt: string): Promise<string> => {
-  const url = `${API_BASE_URL}/sound-generation`;
-  const body = {
-    text: prompt,
-    duration_seconds: 4, // Keep SFX short and punchy
-  };
-  return generateAudio(apiKey, url, body);
+  // Cached, shorter duration to reduce cost and latency
+  return getOrGenerateAudio(apiKey, prompt, 3);
 };
 
 export const generateBackgroundMusic = (apiKey: string, prompt: string): Promise<string> => {
-    // FIX: Use the sound-generation endpoint as a fallback for music generation, as the dedicated
-    // music endpoint may not be available on all plans.
-    const url = `${API_BASE_URL}/sound-generation`;
-    const body = {
-        text: prompt,
-        duration_seconds: 20, // A short, loopable track
-    };
-    return generateAudio(apiKey, url, body);
+  // Cached, shorter track to keep costs down
+  const tunedPrompt = `${prompt} — short loopable background music, no vocals`;
+  return getOrGenerateAudio(apiKey, tunedPrompt, 10);
 };
 
 // Simple in-memory cache scoped to a session. Keys are normalized prompts + duration.
@@ -107,6 +124,6 @@ export const generateStinger = (apiKey: string, prompt: string): Promise<string>
 };
 
 export const generateAmbienceBed = (apiKey: string, prompt: string): Promise<string> => {
-  // 12s loopable ambience bed as fallback when music is unavailable
-  return getOrGenerateAudio(apiKey, `${prompt} — loopable ambience bed, no vocals, minimal melody`, 12);
+  // 8s loopable ambience bed as fallback when music is unavailable
+  return getOrGenerateAudio(apiKey, `${prompt} — loopable ambience bed, no vocals, minimal melody`, 8);
 };
