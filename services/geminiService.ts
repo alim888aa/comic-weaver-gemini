@@ -207,6 +207,16 @@ export const generateDirectorPageAndJSON = async (
   return result;
 };
 
+export const analyzeCharacterPhoto = async (
+  photo: string
+): Promise<{ characterDescription: string }> => {
+  console.log('[Gemini] analyzeCharacterPhoto request');
+  const compressedPhoto = await compressBase64Image(photo, 512, 0.6);
+  const result = await callGeminiAPI('analyzeCharacterPhoto', { photo: compressedPhoto });
+  console.log('[Gemini] analyzeCharacterPhoto response received');
+  return result;
+};
+
 export const generatePanelImageFromPageRef = async (
   theme: Theme,
   panelDescription: string,

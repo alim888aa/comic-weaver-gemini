@@ -61,7 +61,7 @@ export const storyMachine = setup({
   types: {} as {
     context: StoryContext;
     events:
-      | { type: 'START'; theme: Theme }
+      | { type: 'START'; theme: Theme; characterReference: string; characterDescription: string }
       | { type: 'CONTINUE' }
       | { type: 'MAKE_CHOICE'; choice: Choice }
       | { type: 'VIEW_PREV' }
@@ -327,6 +327,8 @@ export const storyMachine = setup({
           actions: assign(({ event }) => ({
             ...initialContext,
             theme: event.theme,
+            characterReference: event.characterReference,
+            characterDescription: event.characterDescription,
             isGenerating: true,
           })),
         },

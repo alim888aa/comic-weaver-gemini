@@ -77,6 +77,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(200).json({ choices: result });
       }
 
+      case 'analyzeCharacterPhoto': {
+        const { photo } = params;
+        const result = await analyzeCharacterPhoto(ai, photo);
+        return res.status(200).json(result);
+      }
+
       default:
         return res.status(400).json({ error: `Unknown action: ${action}` });
     }
@@ -662,4 +668,49 @@ Output: exactly ONE panel image (not a page or collage).
     }
   }
   throw new Error('Panel-from-page generation failed: no image returned');
+}
+
+async function analyzeCharacterPhoto(
+  ai: GoogleGenAI,
+  photo: string
+): Promise<{ characterDescription: string }> {
+  const prompt = `
+You are analyzing a photo to create a detailed character description for a comic book story.
+Examine the person in this image and write a vivid, specific description (80-140 words) suitable for image generation prompts.
+
+Include:
+- Apparent age range and gender presentation
+- Hair color, style, and length
+- Eye color and distinctive facial features
+- Skin tone
+- Any visible clothing style or accessories
+- Overall vibe/aesthetic (e.g., adventurous, scholarly, mysterious)
+
+Write in third person, present tense. Focus on visual details that would help an AI image generator recreate this person consistently across multiple comic panels.
+Do NOT include any personal identifying information - describe them as a fictional character.
+
+Return JSON with a single field "characterDescription" containing the description.
+`;
+
+  const parts: any[] = [
+    { inlineData: { data: photo, mimeType: 'image/jpeg' } },
+    { text: prompt }
+  ];
+
+  const response = await ai.models.generateContent({
+    model: 'gemini-2.5-flash-lite',
+    contents: { parts },
+    config: {
+      responseMimeType: 'application/json',
+      responseSchema: {
+        type: 'object' as const,
+        properties: {
+          characterDescription: { type: 'string' as const },
+        },
+        required: ['characterDescription'],
+      },
+    },
+  });
+
+  return JSON.parse(response.text.trim());
 }
