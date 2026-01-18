@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React from 'react';
 import type { InterpreterFrom } from 'xstate';
 import type { storyMachine } from '../state/storyMachine';
 import type { Theme } from '../types';
-import { BookOpenIcon, PlayIcon, RefreshIcon } from './icons';
+import { BookOpenIcon, PlayIcon } from './icons';
 
 interface IdleScreenProps {
   send: InterpreterFrom<typeof storyMachine>['send'];
@@ -10,26 +10,18 @@ interface IdleScreenProps {
   showViewPrevious?: boolean;
 }
 
-const ThemeButton: React.FC<{ onClick: () => void; label: string; disabled: boolean; }> = ({ onClick, label, disabled }) => (
+const ThemeButton: React.FC<{ onClick: () => void; label: string }> = ({ onClick, label }) => (
   <button
     onClick={onClick}
-    disabled={disabled}
-    className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg transition duration-300 ease-in-out transform hover:scale-105 disabled:bg-gray-600 disabled:cursor-not-allowed disabled:transform-none"
+    className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg transition duration-300 ease-in-out transform hover:scale-105"
   >
     {label}
   </button>
 );
 
 const IdleScreen: React.FC<IdleScreenProps> = ({ send, showContinue, showViewPrevious }) => {
-  const envGeminiKey = (process.env.GEMINI_API_KEY ?? '').toString().trim();
-  const envElevenLabsKey = (process.env.ELEVENLABS_API_KEY ?? '').toString().trim();
-  const [apiKey] = useState(envGeminiKey);
-  const [elevenLabsKey] = useState(envElevenLabsKey);
-  const areKeysProvided = apiKey !== '' && elevenLabsKey !== '';
-
   const handleStart = (theme: Theme) => {
-    if (!areKeysProvided) return;
-    send({ type: 'START', theme, apiKey, elevenLabsApiKey: elevenLabsKey });
+    send({ type: 'START', theme });
   };
 
   const handleContinue = () => {
@@ -49,9 +41,9 @@ const IdleScreen: React.FC<IdleScreenProps> = ({ send, showContinue, showViewPre
       <p className="text-gray-400 mb-6">Choose a genre to begin.</p>
 
       <div className="space-y-4">
-        <ThemeButton onClick={() => handleStart('fantasy')} label="Fantasy" disabled={!areKeysProvided} />
-        <ThemeButton onClick={() => handleStart('scifi')} label="Sci-Fi" disabled={!areKeysProvided} />
-        <ThemeButton onClick={() => handleStart('school')} label="School Life" disabled={!areKeysProvided} />
+        <ThemeButton onClick={() => handleStart('fantasy')} label="Fantasy" />
+        <ThemeButton onClick={() => handleStart('scifi')} label="Sci-Fi" />
+        <ThemeButton onClick={() => handleStart('school')} label="School Life" />
       </div>
 
       {(showContinue || showViewPrevious) && (

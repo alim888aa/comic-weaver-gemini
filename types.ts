@@ -41,8 +41,6 @@ export interface StoryContext {
   ending: keyof MoodVector | null;
   backgroundMusic: string | undefined; // object URL for chapter music
   isMuted: boolean;
-  apiKey: string | undefined;
-  elevenLabsApiKey: string | undefined;
   lastChoiceText: string | undefined; // The text of the last choice made by the user
   npcs: NPC[]; // A roster of all NPCs encountered in the story
 }

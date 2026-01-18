@@ -15,7 +15,7 @@ import {
   generateAmbienceBed,
   generateStinger,
 } from '../services/elevenlabsService';
-import { loadState, clearState, loadCompletedState, saveCompletedState } from '../services/storageService';
+import { loadState, clearState, loadCompletedState } from '../services/storageService';
 import type { StoryContext, Theme, MoodVector, Panel, Choice, NPC } from '../types';
 
 interface GenerationOutput {
@@ -42,8 +42,6 @@ const initialContext: StoryContext = {
   ending: null,
   backgroundMusic: undefined,
   isMuted: false,
-  apiKey: undefined,
-  elevenLabsApiKey: undefined,
   lastChoiceText: undefined,
   npcs: [],
 };
@@ -63,7 +61,7 @@ export const storyMachine = setup({
   types: {} as {
     context: StoryContext;
     events:
-      | { type: 'START'; theme: Theme; apiKey: string; elevenLabsApiKey: string; }
+      | { type: 'START'; theme: Theme }
       | { type: 'CONTINUE' }
       | { type: 'MAKE_CHOICE'; choice: Choice }
       | { type: 'VIEW_PREV' }
@@ -77,9 +75,9 @@ export const storyMachine = setup({
     loadState: fromPromise(loadState),
     loadCompleted: fromPromise(loadCompletedState),
     generateChapter: fromPromise(async ({ input }: { input: StoryContext }): Promise<GenerationOutput> => {
-      const { apiKey, elevenLabsApiKey, theme, mood, allPanels, lastChoiceText, npcs } = input;
-      if (!apiKey || !elevenLabsApiKey || !theme) {
-        throw new Error("API keys and theme are required for generation.");
+      const { theme, mood, allPanels, lastChoiceText, npcs } = input;
+      if (!theme) {
+        throw new Error("Theme is required for generation.");
       }
       
       let charDesc = input.characterDescription; // Canonical description; optional at start
@@ -93,7 +91,7 @@ export const storyMachine = setup({
       let styleReferencePage = input.storyboardReference;
       try {
         console.log('[Director] Starting director+page flow');
-        const director = await generateDirectorPageAndJSON(apiKey, theme, mood, allPanels, lastChoiceText, charDesc, charRefImg, styleReferencePage);
+        const director = await generateDirectorPageAndJSON(theme, mood, allPanels, lastChoiceText, charDesc, styleReferencePage);
         referencePage = director.pageImage;
         if (!styleReferencePage && referencePage) {
           styleReferencePage = referencePage;
@@ -112,7 +110,7 @@ export const storyMachine = setup({
       // If director failed, fallback to text orchestrator
       let storyData: any = null;
       if (!directorPanels || !referencePage) {
-        storyData = await generateStoryChapter(apiKey, theme, mood, allPanels, charDesc || '', lastChoiceText);
+        storyData = await generateStoryChapter(theme, mood, allPanels, charDesc || '', lastChoiceText);
         directorPanels = storyData.panels;
         directorChoices = storyData.choices;
         directorNewNpcs = storyData.newNpcs || [];
@@ -125,7 +123,6 @@ export const storyMachine = setup({
       if (!charRefImg && charDesc) {
         try {
           charRefImg = await generatePanelImage(
-            apiKey,
             theme,
             'A portrait of the main character, head and shoulders, neutral expression, clean background.',
             charDesc,
@@ -141,7 +138,7 @@ export const storyMachine = setup({
             directorNewNpcs.map(async (npc) => {
               const existing = npcs.find((n) => n.name === npc.name && n.description === npc.description);
               if (existing) return existing;
-              const npcPortrait = await generatePanelImage(apiKey, theme, `A portrait of ${npc.name}, ${npc.description}`, "");
+              const npcPortrait = await generatePanelImage(theme, `A portrait of ${npc.name}, ${npc.description}`, "");
               return { name: npc.name, description: npc.description, referenceImage: npcPortrait } as NPC;
             })
           )
@@ -151,16 +148,16 @@ export const storyMachine = setup({
 
       // Ask Gemini for audio briefs to craft precise prompts and reduce wasted calls
       const pseudoForAudio: Panel[] = (directorPanels || []).map((p: any) => ({ image: '', narrative: p.narrative })) as unknown as Panel[];
-      const audioBriefs = await generateAudioBriefs(apiKey, theme, mood, pseudoForAudio);
+      const audioBriefs = await generateAudioBriefs(theme, mood, pseudoForAudio);
 
       // Start background music generation with fallback to ambience bed
       const backgroundMusicPromise = input.backgroundMusic
         ? Promise.resolve(input.backgroundMusic)
         : (async () => {
-            const track = await generateBackgroundMusic(elevenLabsApiKey, audioBriefs.musicPrompt);
+            const track = await generateBackgroundMusic(audioBriefs.musicPrompt);
             if (track && track.length > 0) return track;
             // Fallback ambience bed
-            return await generateAmbienceBed(elevenLabsApiKey, audioBriefs.ambiencePrompt || audioBriefs.musicPrompt);
+            return await generateAmbienceBed(audioBriefs.ambiencePrompt || audioBriefs.musicPrompt);
           })();
 
       // Cost caps: at most 4 SFX and 2 stingers per chapter
@@ -179,14 +176,14 @@ export const storyMachine = setup({
             const shouldGenSfx = sfxCount < maxSfx;
             const shouldGenStinger = briefs.stingerPrompt && stingerCount < maxStingers;
 
-            const imagePromise = generatePanelImageFromPageRef(apiKey, theme, panel.description, panel.specs || {}, referencePage!, charRefImg, charDesc, allKnownNpcs)
+            const imagePromise = generatePanelImageFromPageRef(theme, panel.description, panel.specs || {}, referencePage!, charRefImg, charDesc, allKnownNpcs)
               .then((img) => { console.log('[Director] Panel-from-page success', { index }); return img; })
               .catch(async (err) => {
                 console.warn('[Director] Panel-from-page failed; fallback to per-panel without page', { index, err });
-                return await generatePanelImage(apiKey, theme, panel.description, charDesc || '', charRefImg, allKnownNpcs);
+                return await generatePanelImage(theme, panel.description, charDesc || '', charRefImg, allKnownNpcs);
               });
-            const sfxPromise = shouldGenSfx ? generateSoundEffect(elevenLabsApiKey, briefs.sfxPrompt) : Promise.resolve("");
-            const stingerPromise = shouldGenStinger ? generateStinger(elevenLabsApiKey, briefs.stingerPrompt as string) : Promise.resolve("");
+            const sfxPromise = shouldGenSfx ? generateSoundEffect(briefs.sfxPrompt) : Promise.resolve("");
+            const stingerPromise = shouldGenStinger ? generateStinger(briefs.stingerPrompt as string) : Promise.resolve("");
 
             const [image, soundEffectAudio, stingerAudio] = await Promise.all([imagePromise, sfxPromise, stingerPromise]);
             if (shouldGenSfx && soundEffectAudio) sfxCount += 1;
@@ -199,15 +196,15 @@ export const storyMachine = setup({
         const panelDescriptions: string[] = directorPanels!.map((p: any) => p.description as string);
         const panelSpecs: Array<any> = directorPanels!.map((p: any) => p.specs || {});
         try {
-          const batchImages: string[] = await generateChapterImagesBatch(apiKey, theme, panelDescriptions, panelSpecs, charDesc || '', charRefImg, allKnownNpcs);
+          const batchImages: string[] = await generateChapterImagesBatch(theme, panelDescriptions, panelSpecs, charDesc || '', charRefImg, allKnownNpcs);
           panelsWithAudio = await Promise.all(
             directorPanels!.map(async (panel: any, index: number) => {
               const briefs = audioBriefs.perPanel[index] ?? { sfxPrompt: `Sound effect for: ${panel.description.substring(0, 200)}` };
               const shouldGenSfx = sfxCount < maxSfx;
               const shouldGenStinger = briefs.stingerPrompt && stingerCount < maxStingers;
 
-              const sfxPromise = shouldGenSfx ? generateSoundEffect(elevenLabsApiKey, briefs.sfxPrompt) : Promise.resolve("");
-              const stingerPromise = shouldGenStinger ? generateStinger(elevenLabsApiKey, briefs.stingerPrompt as string) : Promise.resolve("");
+              const sfxPromise = shouldGenSfx ? generateSoundEffect(briefs.sfxPrompt) : Promise.resolve("");
+              const stingerPromise = shouldGenStinger ? generateStinger(briefs.stingerPrompt as string) : Promise.resolve("");
               const [soundEffectAudio, stingerAudio] = await Promise.all([sfxPromise, stingerPromise]);
               if (shouldGenSfx && soundEffectAudio) sfxCount += 1;
               if (shouldGenStinger && stingerAudio) stingerCount += 1;
@@ -222,9 +219,9 @@ export const storyMachine = setup({
               const shouldGenSfx = sfxCount < maxSfx;
               const shouldGenStinger = briefs.stingerPrompt && stingerCount < maxStingers;
 
-              const imagePromise = generatePanelImage(apiKey, theme, panel.description, charDesc || '', charRefImg, allKnownNpcs);
-              const sfxPromise = shouldGenSfx ? generateSoundEffect(elevenLabsApiKey, briefs.sfxPrompt) : Promise.resolve("");
-              const stingerPromise = shouldGenStinger ? generateStinger(elevenLabsApiKey, briefs.stingerPrompt as string) : Promise.resolve("");
+              const imagePromise = generatePanelImage(theme, panel.description, charDesc || '', charRefImg, allKnownNpcs);
+              const sfxPromise = shouldGenSfx ? generateSoundEffect(briefs.sfxPrompt) : Promise.resolve("");
+              const stingerPromise = shouldGenStinger ? generateStinger(briefs.stingerPrompt as string) : Promise.resolve("");
               const [image, soundEffectAudio, stingerAudio] = await Promise.all([imagePromise, sfxPromise, stingerPromise]);
               if (shouldGenSfx && soundEffectAudio) sfxCount += 1;
               if (shouldGenStinger && stingerAudio) stingerCount += 1;
@@ -242,7 +239,7 @@ export const storyMachine = setup({
       if (!Array.isArray(finalChoices) || finalChoices.length !== 4 || !finalChoices.every(validChoice)) {
         console.warn('[Choices] Director choices invalid/missing; invoking fallback model');
         try {
-          finalChoices = await generateChoicesFallback(apiKey, theme, mood, allPanels.concat(panelsWithAudio), lastChoiceText);
+          finalChoices = await generateChoicesFallback(theme, mood, allPanels.concat(panelsWithAudio), lastChoiceText);
           console.log('[Choices] Fallback choices generated', { count: finalChoices?.length, first: finalChoices?.[0]?.text });
         } catch (err) {
           console.error('[Choices] Fallback generation failed', err);
@@ -263,9 +260,9 @@ export const storyMachine = setup({
       };
     }),
     generateEnding: fromPromise(async ({ input }: { input: StoryContext }): Promise<{ newPanels: Panel[] }> => {
-      const { apiKey, elevenLabsApiKey, theme, mood, allPanels, characterDescription, characterReference, npcs, ending } = input;
-      if (!apiKey || !elevenLabsApiKey || !theme) {
-        throw new Error("API keys and theme are required for ending generation.");
+      const { theme, mood, allPanels, characterDescription, characterReference, npcs, ending } = input;
+      if (!theme) {
+        throw new Error("Theme is required for ending generation.");
       }
 
       const dominantMood = ending ?? (['adventure', 'danger', 'romance', 'drama'] as const)
@@ -274,11 +271,11 @@ export const storyMachine = setup({
       const charDesc = characterDescription || '';
       const charRefImg = characterReference || undefined;
 
-      const endingData = await generateEndingChapter(apiKey, theme, mood, allPanels, charDesc, dominantMood);
+      const endingData = await generateEndingChapter(theme, mood, allPanels, charDesc, dominantMood);
 
       // Prepare lightweight pseudo panels for audio brief authoring
       const pseudoPanels: Panel[] = endingData.panels.map(p => ({ image: '', narrative: p.narrative })) as unknown as Panel[];
-      const audioBriefs = await generateAudioBriefs(apiKey, theme, mood, pseudoPanels);
+      const audioBriefs = await generateAudioBriefs(theme, mood, pseudoPanels);
 
       let sfxCount = 0;
       let stingerCount = 0;
@@ -291,7 +288,6 @@ export const storyMachine = setup({
       const endingDescriptions: string[] = endingData.panels.map(p => p.description);
       const endingSpecs: Array<any> = endingData.panels.map((_p) => ({}));
       const endingImages: string[] = await generateChapterImagesBatch(
-        apiKey,
         theme,
         endingDescriptions,
         endingSpecs,
@@ -306,8 +302,8 @@ export const storyMachine = setup({
           const shouldGenSfx = sfxCount < maxSfx;
           const shouldGenStinger = briefs.stingerPrompt && stingerCount < maxStingers;
 
-          const sfxPromise = shouldGenSfx ? generateSoundEffect(elevenLabsApiKey, briefs.sfxPrompt) : Promise.resolve("");
-          const stingerPromise = shouldGenStinger ? generateStinger(elevenLabsApiKey, briefs.stingerPrompt as string) : Promise.resolve("");
+          const sfxPromise = shouldGenSfx ? generateSoundEffect(briefs.sfxPrompt) : Promise.resolve("");
+          const stingerPromise = shouldGenStinger ? generateStinger(briefs.stingerPrompt as string) : Promise.resolve("");
 
           const [soundEffectAudio, stingerAudio] = await Promise.all([sfxPromise, stingerPromise]);
           if (shouldGenSfx && soundEffectAudio) sfxCount += 1;
@@ -331,8 +327,6 @@ export const storyMachine = setup({
           actions: assign(({ event }) => ({
             ...initialContext,
             theme: event.theme,
-            apiKey: event.apiKey,
-            elevenLabsApiKey: event.elevenLabsApiKey,
             isGenerating: true,
           })),
         },
@@ -353,12 +347,7 @@ export const storyMachine = setup({
             target: 'playing',
             guard: ({ event }) => {
               const savedState = event.output as { value: unknown; context: StoryContext } | null;
-              return !!(
-                savedState &&
-                savedState.context &&
-                savedState.context.apiKey &&
-                savedState.context.elevenLabsApiKey
-              );
+              return !!(savedState && savedState.context && savedState.context.theme);
             },
             actions: assign(({ event }) => {
               const savedState = event.output as { value: unknown; context: StoryContext } | null;
@@ -387,7 +376,7 @@ export const storyMachine = setup({
             target: 'idle',
             actions: assign(() => ({
               ...initialContext,
-              error: 'Saved story is missing API keys. Please start a new game.',
+              error: 'No saved story found. Please start a new game.',
             })),
           },
         ],
